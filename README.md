@@ -73,7 +73,6 @@ FILTER(
 
 df_closed = fabric.evaluate_dax(dataset="DLV Aging Columns & Measures", dax_string=dax_query)
 ```
-```
 
 ---
 
@@ -486,16 +485,6 @@ Expected performance (will vary based on your data):
 - Check feature engineering: Ensure categorical features are encoded
 - Verify train/test data comes from same distribution
 - Inspect feature importance: Low-importance features may dominate
-
----
-
-## 📚 Resources
-
-- [Semantic Link Documentation](https://learn.microsoft.com/fabric/data-science/semantic-link-overview)
-- [FLAML AutoML](https://microsoft.github.io/FLAML/)
-- [MLflow in Fabric](https://learn.microsoft.com/fabric/data-science/mlflow-overview)
-
----
 
 ---
 
