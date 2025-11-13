@@ -97,37 +97,75 @@ df_closed = fabric.evaluate_dax(dataset="DLV Aging Columns & Measures", dax_stri
 #### 🚚 Logistics Features
 | Feature | Type | Description | Why It Matters |
 |---------|------|-------------|----------------|
-| **EWM_CARRIER_CODE** | Categorical | Carrier/shipping company | Carrier reliability varies significantly |
+| **EWM Carrier Code** | Categorical | Carrier/shipping company | Carrier reliability varies significantly |
+| **Shipping Condition** | Categorical | Shipping terms | Different conditions affect delivery speed |
+| **EWM Shipping Condition** | Categorical | EWM-specific shipping condition | Warehouse-level shipping requirements |
+| **Delivery Type** | Categorical | Type of delivery | Standard vs expedited delivery |
 
 #### 👥 Customer Features  
 | Feature | Type | Description | Why It Matters |
 |---------|------|-------------|----------------|
 | **STRATEGIC_ACCOUNT** | Binary | "Yes" or blank | Strategic customers get priority; used for high_priority flag |
+| **Sold To - Key** | Categorical | Customer identifier | Customer-specific delivery patterns |
+| **Ship To - Key** | Categorical | Shipping destination | Ship-to location affects delivery time |
 
 #### 📦 Product Features
 | Feature | Type | Description | Why It Matters |
 |---------|------|-------------|----------------|
-| **Brand** | Categorical | Product brand (DAX calculated) | Some brands may have longer lead times |
-| **Channel** | Categorical | Sales channel (DAX calculated) | Different channels have different SLAs |
-| **Product Category** | Categorical | Product classification (DAX calculated) | Product complexity affects delivery time |
+| **Brand** | Categorical | Product brand (DAX calculated)<br>• Callaway/Odyssey<br>• Jack Wolfskin<br>• TravisMathew/Cuater<br>• Topgolf<br>• Ogio | Some brands may have longer lead times |
+| **Channel** | Categorical | Sales channel (DAX calculated)<br>• E-commerce<br>• Inter-company<br>• Other | Different channels have different SLAs |
+| **Product Category** | Categorical | Product classification | Product complexity affects delivery time |
+| **Product Type** | Categorical | Type of product | Custom vs standard products |
+| **Standard Or Custom** | Categorical | Standard or customized product | Custom products require longer fulfillment |
 
 #### 💰 Financial Features
 | Feature | Type | Description | Why It Matters |
 |---------|------|-------------|----------------|
 | **DELIVERY_VALUE_USD** | Numeric | Shipment value in USD | Higher-value shipments may get priority handling |
+| **DELIVERY_QTY** | Numeric | Delivery quantity | Large orders may take longer to fulfill |
+
+#### 📋 Status & Processing Features
+| Feature | Type | Description | Why It Matters |
+|---------|------|-------------|----------------|
+| **Credit Status** | Categorical (DAX calculated)<br>• Credit checked, ok<br>• Credit checked, not ok<br>• Document Released<br>• No Credit check yet | Categorical | Credit holds can delay shipments |
+| **Distribution Status** | Categorical (DAX calculated)<br>• Confirmed<br>• Distributed<br>• Planned for Distribution<br>• Relevant | Categorical | Processing stage affects delivery timeline |
+| **STATUS** | Categorical | Delivery status | Current delivery state |
+| **Delivery Priority** | Categorical | Priority level | Higher priority may ship faster |
+
+#### 📅 Temporal Features
+| Feature | Type | Description | Why It Matters |
+|---------|------|-------------|----------------|
+| **Delivery Created On** | Date | Order creation date | Age of order affects urgency |
+| **Req. Date Header** | Date | Customer requested delivery date | Target delivery date |
+| **AGE_CREATEDON** | Numeric | Days since order creation | Older orders may have delays |
 
 ### Feature Engineering
 
 **Encoding Categorical Variables:**
-- **Label Encoding**: Used for high-cardinality features (Plant, Shipping Point, Carrier)
-- **One-Hot Encoding**: Alternative for low-cardinality features
-- **Handling Missing Values**: Imputed with mode for categorical, median for numeric
+- **Label Encoding**: Used for high-cardinality features (Plant, Shipping Point, Carrier, Customer IDs)
+- **Category Codes**: Convert categorical strings to numeric codes for ML algorithms
+- **Handling Missing Values**: Fill with "Unknown" before encoding for categorical, median for numeric
+
+**Temporal Features Created:**
+```python
+df['created_dayofweek'] = pd.to_datetime(df['Delivery Created On']).dt.dayofweek
+df['created_month'] = pd.to_datetime(df['Delivery Created On']).dt.month
+```
+
+**Features Actually Used in Notebooks** (from `02_autoML_training_pipeline.ipynb`):
+- Plant, Shipping Point, EWM Carrier Code
+- Brand, Channel, Product Category, Product Type, Standard Or Custom
+- STRATEGIC_ACCOUNT, Sold To - Key
+- Delivery Type, DELIVERY_QTY, DELIVERY_VALUE_USD, Delivery Priority, Shipping Condition
+- Credit Status, Distribution Status, STATUS
+- Temporal: created_dayofweek, created_month (if available)
 
 **Potential Enhancements** (see Next Steps):
-- Historical carrier performance (30-day late rate)
-- Temporal features (day of week, month, holiday proximity)
+- Historical carrier performance (30-day late rate by carrier)
 - Customer-level historical late delivery rate
-- Order quantity, weight, distance
+- Distance calculations (ship-from to ship-to)
+- Holiday proximity indicators
+- Seasonal patterns (Q4 peak season)
 
 ---
 
