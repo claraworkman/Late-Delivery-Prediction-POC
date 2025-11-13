@@ -76,6 +76,61 @@ df_closed = fabric.evaluate_dax(dataset="DLV Aging Columns & Measures", dax_stri
 
 ---
 
+## 🤖 Machine Learning Features
+
+### Target Variable
+
+**AGE_REQ_DATE** - Days late/early compared to Customer Requested Delivery Date
+- **Positive values** = Late delivery (e.g., +5 = 5 days late)
+- **Negative values** = Early delivery (e.g., -2 = 2 days early)  
+- **Zero** = On-time delivery
+- **Type**: Continuous (regression) + Binary classification (late vs on-time)
+
+### Feature Categories
+
+#### 🏭 Location Features
+| Feature | Type | Description | Why It Matters |
+|---------|------|-------------|----------------|
+| **Plant** | Categorical | Manufacturing/shipping plant code | Different plants have different delivery performance |
+| **Shipping Point** | Categorical | Distribution center | Proximity to customer, capacity constraints |
+
+#### 🚚 Logistics Features
+| Feature | Type | Description | Why It Matters |
+|---------|------|-------------|----------------|
+| **EWM_CARRIER_CODE** | Categorical | Carrier/shipping company | Carrier reliability varies significantly |
+
+#### 👥 Customer Features  
+| Feature | Type | Description | Why It Matters |
+|---------|------|-------------|----------------|
+| **STRATEGIC_ACCOUNT** | Binary | "Yes" or blank | Strategic customers get priority; used for high_priority flag |
+
+#### 📦 Product Features
+| Feature | Type | Description | Why It Matters |
+|---------|------|-------------|----------------|
+| **Brand** | Categorical | Product brand (DAX calculated) | Some brands may have longer lead times |
+| **Channel** | Categorical | Sales channel (DAX calculated) | Different channels have different SLAs |
+| **Product Category** | Categorical | Product classification (DAX calculated) | Product complexity affects delivery time |
+
+#### 💰 Financial Features
+| Feature | Type | Description | Why It Matters |
+|---------|------|-------------|----------------|
+| **DELIVERY_VALUE_USD** | Numeric | Shipment value in USD | Higher-value shipments may get priority handling |
+
+### Feature Engineering
+
+**Encoding Categorical Variables:**
+- **Label Encoding**: Used for high-cardinality features (Plant, Shipping Point, Carrier)
+- **One-Hot Encoding**: Alternative for low-cardinality features
+- **Handling Missing Values**: Imputed with mode for categorical, median for numeric
+
+**Potential Enhancements** (see Next Steps):
+- Historical carrier performance (30-day late rate)
+- Temporal features (day of week, month, holiday proximity)
+- Customer-level historical late delivery rate
+- Order quantity, weight, distance
+
+---
+
 ## 🏗️ Architecture
 
 ### Workflow Overview
