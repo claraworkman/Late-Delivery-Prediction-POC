@@ -191,35 +191,35 @@ df_closed = fabric.evaluate_dax(dataset="DLV Aging Columns & Measures", dax_stri
 ```
 aging-prediction-poc/
 │
-├── 01_semantic_link_data_preparation.ipynb    # Load & explore closed deliveries
-├── 02_autoML_training_pipeline.ipynb          # AutoML training (regression + classification)
-├── 03_batch_scoring_pipeline.ipynb            # Batch scoring on open deliveries
+├── 01_semantic_link_data_preparation.ipynb     # Load & explore closed deliveries
+├── 02_autoML_training_pipeline.ipynb           # AutoML training (regression + classification)
+├── 03_batch_scoring_pipeline.ipynb             # Batch scoring on open deliveries
 │
-├── notebooks/                                  # Utility modules
+├── notebooks/                                   # Utility modules
 │   └── utils/
 │       ├── __init__.py
-│       ├── preprocessing.py                    # Data validation, cleaning
-│       ├── feature_engineering.py              # Feature creation
-│       └── model_utils.py                      # Evaluation, MLflow helpers
+│       ├── preprocessing.py                     # Data validation, cleaning
+│       ├── feature_engineering.py               # Feature creation
+│       └── model_utils.py                       # Evaluation, MLflow helpers
 │
-├── powerbi/                                    # Power BI artifacts
+├── powerbi/                                     # Power BI artifacts
 │   └── dax/
-│       └── measures_late_delivery.dax          # DAX measures (buckets, strategic, KPIs)
+│       └── measures_late_delivery.dax           # DAX measures (buckets, strategic, KPIs)
 │
-├── data/                                       # Data documentation
-│   ├── sample/                                 # Sample data files (if needed)
+├── data/                                        # Data documentation
+│   ├── sample/                                  # Sample data files (if needed)
 │   └── schema/
-│       └── aging_schema.json                   # Aging table schema documentation
+│       └── aging_schema.json                    # Aging table schema documentation
 │
-├── ml/                                         # ML documentation
-│   └── models/                                 # Model artifacts (MLflow managed)
+├── ml/                                          # ML documentation
+│   └── models/                                  # Model artifacts (MLflow managed)
 │
-├── config/                                     # Configuration files
-│   └── fabric_lakehouse_paths.yaml             # Fabric resource IDs and settings
+├── config/                                      # Configuration files
+│   └── fabric_lakehouse_paths.yaml              # Fabric resource IDs and settings
 │
-├── diagrams/                                   # Architecture diagrams
+├── diagrams/                                    # Architecture diagrams
 │
-└── README.md                                   # This file
+└── README.md                                    # This file
 ```
 
 ---
