@@ -81,35 +81,6 @@ df_closed = fabric.evaluate_dax(dataset="DLV Aging Columns & Measures", dax_stri
 
 ### Workflow Overview
 
-```mermaid
-graph TB
-    A[📊 Fabric Semantic Model<br/>DLV Aging Columns & Measures<br/>Aging Table] 
-    B[� Fabric Notebook<br/>Data Preparation<br/>01_semantic_link_data_preparation]
-    C[🤖 AutoML Training<br/>FLAML AutoML<br/>02_autoML_training_pipeline]
-    D[📦 MLflow Model Registry<br/>POC-LateDelivery-Regression-AutoML<br/>POC-LateDelivery-Classification-AutoML]
-    E[🔮 Batch Scoring Pipeline<br/>03_batch_scoring_pipeline]
-    F[� Fabric Lakehouse<br/>Delta Table<br/>late_delivery_predictions]
-    G[📈 Power BI Report<br/>Direct Lake Mode]
-    
-    A -->|Semantic Link DAX Query<br/>Closed deliveries GI Date populated<br/>Target: AGE_REQ_DATE| B
-    B -->|Feature Engineering<br/>Plant, Carrier, Brand, Channel<br/>Strategic Account| C
-    C -->|Train Models<br/>Regression: days late<br/>Classification: late/on-time| D
-    D -->|Load Model| E
-    A -->|DAX Query<br/>Open deliveries GI Date blank| E
-    E -->|Predictions + Risk Scores<br/>Lateness Buckets<br/>High Priority Flags| F
-    F -->|Direct Lake<br/>Live Connection| G
-    
-    style A fill:#0078d4,color:#fff
-    style B fill:#50e6ff,color:#000
-    style C fill:#f2c811,color:#000
-    style D fill:#ff6700,color:#fff
-    style E fill:#00bcf2,color:#000
-    style F fill:#7fba00,color:#fff
-    style G fill:#ca5010,color:#fff
-```
-
-**Alternative Text Diagram:**
-
 ```
 ┌──────────────────────────────────────┐
 │   Fabric Semantic Model              │
