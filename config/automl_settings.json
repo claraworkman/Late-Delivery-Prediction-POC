@@ -1,0 +1,18 @@
+{
+  "time_budget": 180,
+  "task": "regression",
+  "metric": "mae",
+  "estimator_list": [
+    "rf",
+    "xgboost",
+    "extra_tree"
+  ],
+  "log_file_name": "automl_safe.log",
+  "notes": {
+    "description": "AutoML configuration for delivery time prediction regression model",
+    "time_budget_minutes": 3,
+    "optimization_metric": "Mean Absolute Error (MAE)",
+    "allowed_estimators": "Random Forest (rf), XGBoost (xgboost), Extra Trees (extra_tree)",
+    "usage": "automl.fit(X_train=X_train, y_train=y_train, **settings)"
+  }
+}

@@ -1,0 +1,287 @@
+-- ========================================================================
+-- DAX Measures for Late Delivery Prediction POC
+-- Use Case: Global Operations Insights - Order Delivery
+-- ========================================================================
+-- These measures analyze late delivery predictions from the ML model
+-- and historical closed delivery performance
+-- ========================================================================
+
+-- ========================================================================
+-- SECTION 1: BASIC COUNTS & METRICS
+-- ========================================================================
+
+-- Total number of deliveries
+Total Deliveries = 
+DISTINCTCOUNT('late_delivery_predictions'[Delivery_Number])
+
+-- Count of predicted late deliveries
+Predicted Late Deliveries = 
+CALCULATE(
+    DISTINCTCOUNT('late_delivery_predictions'[Delivery_Number]),
+    'late_delivery_predictions'[is_late] = 1
+)
+
+-- Count of predicted on-time deliveries
+Predicted On-Time Deliveries = 
+CALCULATE(
+    DISTINCTCOUNT('late_delivery_predictions'[Delivery_Number]),
+    'late_delivery_predictions'[is_late] = 0
+)
+
+-- Late delivery rate (%)
+Late Delivery Rate = 
+DIVIDE(
+    [Predicted Late Deliveries],
+    [Total Deliveries],
+    0
+)
+
+-- ========================================================================
+-- SECTION 2: LATENESS BUCKETS (0-2, 3-5, 6-9, 10+ days)
+-- ========================================================================
+
+-- Deliveries in 0-2 days late bucket
+Bucket 0-2 Days = 
+CALCULATE(
+    DISTINCTCOUNT('late_delivery_predictions'[Delivery_Number]),
+    'late_delivery_predictions'[lateness_bucket] = "0-2 days late"
+)
+
+-- Deliveries in 3-5 days late bucket
+Bucket 3-5 Days = 
+CALCULATE(
+    DISTINCTCOUNT('late_delivery_predictions'[Delivery_Number]),
+    'late_delivery_predictions'[lateness_bucket] = "3-5 days late"
+)
+
+-- Deliveries in 6-9 days late bucket
+Bucket 6-9 Days = 
+CALCULATE(
+    DISTINCTCOUNT('late_delivery_predictions'[Delivery_Number]),
+    'late_delivery_predictions'[lateness_bucket] = "6-9 days late"
+)
+
+-- Deliveries in 10+ days late bucket
+Bucket 10+ Days = 
+CALCULATE(
+    DISTINCTCOUNT('late_delivery_predictions'[Delivery_Number]),
+    'late_delivery_predictions'[lateness_bucket] = "10+ days late"
+)
+
+-- ========================================================================
+-- SECTION 3: STRATEGIC ACCOUNT ANALYSIS
+-- ========================================================================
+
+-- Strategic account late deliveries
+Strategic Late Deliveries = 
+CALCULATE(
+    DISTINCTCOUNT('late_delivery_predictions'[Delivery_Number]),
+    'late_delivery_predictions'[is_late] = 1,
+    'late_delivery_predictions'[STRATEGIC_ACCOUNT] = "Yes"
+)
+
+-- Non-strategic late deliveries
+Non-Strategic Late Deliveries = 
+CALCULATE(
+    DISTINCTCOUNT('late_delivery_predictions'[Delivery_Number]),
+    'late_delivery_predictions'[is_late] = 1,
+    'late_delivery_predictions'[STRATEGIC_ACCOUNT] <> "Yes"
+)
+
+-- Strategic account late rate
+Strategic Late Rate = 
+DIVIDE(
+    [Strategic Late Deliveries],
+    CALCULATE(
+        DISTINCTCOUNT('late_delivery_predictions'[Delivery_Number]),
+        'late_delivery_predictions'[STRATEGIC_ACCOUNT] = "Yes"
+    ),
+    0
+)
+
+-- High priority deliveries (Strategic + Late)
+High Priority Deliveries = 
+CALCULATE(
+    DISTINCTCOUNT('late_delivery_predictions'[Delivery_Number]),
+    'late_delivery_predictions'[high_priority] = 1
+)
+
+-- ========================================================================
+-- SECTION 4: VALUE IMPACT
+-- ========================================================================
+
+-- Total value of predicted late deliveries
+Late Delivery Value ($) = 
+CALCULATE(
+    SUM('late_delivery_predictions'[DELIVERY_VALUE_USD]),
+    'late_delivery_predictions'[is_late] = 1
+)
+
+-- Total value of on-time deliveries
+On-Time Delivery Value ($) = 
+CALCULATE(
+    SUM('late_delivery_predictions'[DELIVERY_VALUE_USD]),
+    'late_delivery_predictions'[is_late] = 0
+)
+
+-- Average value of late deliveries
+Avg Late Delivery Value = 
+DIVIDE(
+    [Late Delivery Value ($)],
+    [Predicted Late Deliveries],
+    0
+)
+
+-- Value at risk (strategic accounts predicted late)
+Value at Risk - Strategic ($) = 
+CALCULATE(
+    SUM('late_delivery_predictions'[DELIVERY_VALUE_USD]),
+    'late_delivery_predictions'[high_priority] = 1
+)
+
+-- ========================================================================
+-- SECTION 5: AVERAGE LATENESS
+-- ========================================================================
+
+-- Average predicted days late (all deliveries)
+Avg Predicted Days Late = 
+AVERAGE('late_delivery_predictions'[predicted_days_late])
+
+-- Average days late (only late deliveries)
+Avg Days Late (Late Only) = 
+CALCULATE(
+    AVERAGE('late_delivery_predictions'[predicted_days_late]),
+    'late_delivery_predictions'[is_late] = 1
+)
+
+-- Average risk score
+Avg Risk Score = 
+AVERAGE('late_delivery_predictions'[risk_score])
+
+-- ========================================================================
+-- SECTION 6: HISTORICAL PERFORMANCE (from Aging table)
+-- ========================================================================
+
+-- Historical late deliveries (AGE_REQ_DATE > 0)
+Historical Late Deliveries = 
+CALCULATE(
+    DISTINCTCOUNT(Aging[Delivery Number]),
+    Aging[AGE_REQ_DATE] > 0,
+    NOT(ISBLANK(Aging[GI Date]))
+)
+
+-- Historical on-time deliveries
+Historical On-Time Deliveries = 
+CALCULATE(
+    DISTINCTCOUNT(Aging[Delivery Number]),
+    Aging[AGE_REQ_DATE] <= 0,
+    NOT(ISBLANK(Aging[GI Date]))
+)
+
+-- Historical late rate
+Historical Late Rate = 
+VAR TotalClosed = 
+    CALCULATE(
+        DISTINCTCOUNT(Aging[Delivery Number]),
+        NOT(ISBLANK(Aging[GI Date]))
+    )
+RETURN
+DIVIDE([Historical Late Deliveries], TotalClosed, 0)
+
+-- Average historical lateness
+Avg Historical Days Late = 
+CALCULATE(
+    AVERAGE(Aging[AGE_REQ_DATE]),
+    NOT(ISBLANK(Aging[GI Date]))
+)
+
+-- ========================================================================
+-- SECTION 7: CARRIER & PLANT PERFORMANCE
+-- ========================================================================
+
+-- Late deliveries by carrier
+Carrier Late Count = 
+CALCULATE(
+    DISTINCTCOUNT('late_delivery_predictions'[Delivery_Number]),
+    'late_delivery_predictions'[is_late] = 1
+)
+
+-- Carrier late rate
+Carrier Late Rate = 
+VAR TotalForCarrier = DISTINCTCOUNT('late_delivery_predictions'[Delivery_Number])
+RETURN
+DIVIDE([Carrier Late Count], TotalForCarrier, 0)
+
+-- Plant late rate
+Plant Late Rate = 
+VAR TotalForPlant = DISTINCTCOUNT('late_delivery_predictions'[Delivery_Number])
+VAR LateForPlant = 
+    CALCULATE(
+        DISTINCTCOUNT('late_delivery_predictions'[Delivery_Number]),
+        'late_delivery_predictions'[is_late] = 1
+    )
+RETURN
+DIVIDE(LateForPlant, TotalForPlant, 0)
+
+-- ========================================================================
+-- SECTION 8: CURRENT DAY PERFORMANCE (Use with Date filter)
+-- ========================================================================
+
+-- Today's predicted late deliveries
+Today Late Deliveries = 
+CALCULATE(
+    DISTINCTCOUNT('late_delivery_predictions'[Delivery_Number]),
+    'late_delivery_predictions'[is_late] = 1,
+    'late_delivery_predictions'[prediction_date] = TODAY()
+)
+
+-- ========================================================================
+-- SECTION 9: TREND MEASURES (for trailing 2 weeks)
+-- ========================================================================
+
+-- Closed deliveries last 14 days
+Closed Last 14 Days = 
+CALCULATE(
+    DISTINCTCOUNT(Aging[Delivery Number]),
+    NOT(ISBLANK(Aging[GI Date])),
+    Aging[GI Date] >= TODAY() - 14,
+    Aging[GI Date] <= TODAY()
+)
+
+-- Late deliveries last 14 days
+Late Last 14 Days = 
+CALCULATE(
+    DISTINCTCOUNT(Aging[Delivery Number]),
+    NOT(ISBLANK(Aging[GI Date])),
+    Aging[AGE_REQ_DATE] > 0,
+    Aging[GI Date] >= TODAY() - 14,
+    Aging[GI Date] <= TODAY()
+)
+
+-- Late rate last 14 days
+Late Rate Last 14 Days = 
+DIVIDE([Late Last 14 Days], [Closed Last 14 Days], 0)
+
+-- ========================================================================
+-- SECTION 10: BUCKET DISTRIBUTION (%)
+-- ========================================================================
+
+-- % of late deliveries in 0-2 days bucket
+Pct Bucket 0-2 Days = 
+DIVIDE([Bucket 0-2 Days], [Predicted Late Deliveries], 0)
+
+-- % of late deliveries in 3-5 days bucket
+Pct Bucket 3-5 Days = 
+DIVIDE([Bucket 3-5 Days], [Predicted Late Deliveries], 0)
+
+-- % of late deliveries in 6-9 days bucket
+Pct Bucket 6-9 Days = 
+DIVIDE([Bucket 6-9 Days], [Predicted Late Deliveries], 0)
+
+-- % of late deliveries in 10+ days bucket
+Pct Bucket 10+ Days = 
+DIVIDE([Bucket 10+ Days], [Predicted Late Deliveries], 0)
+
+-- ========================================================================
+-- END OF MEASURES
+-- ========================================================================
