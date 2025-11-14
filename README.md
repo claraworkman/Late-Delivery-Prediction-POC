@@ -1,51 +1,58 @@
-# 📦 Late Delivery Prediction POC
+# 📦 Ship Date Prediction POC
 
-**Predict late deliveries before they happen using Microsoft Fabric, Semantic Link, AutoML, and Power BI**
+**Predict when orders will ship from distribution centers using Microsoft Fabric, Semantic Link, AutoML, and Power BI**
 
 ---
 
 ## 📋 Overview
 
-This Proof of Concept (POC) demonstrates a **complete end-to-end machine learning pipeline** for predicting late deliveries in global operations. Built entirely on Microsoft Fabric using AutoML, MLflow, Semantic Link, Lakehouse tables, and Power BI.
+This Proof of Concept (POC) demonstrates a **complete end-to-end machine learning pipeline** for predicting when open orders will ship from distribution centers. Built entirely on Microsoft Fabric using AutoML, MLflow, Semantic Link, Lakehouse tables, and Power BI.
 
-The solution identifies which **open deliveries will arrive late** vs the Customer Requested Delivery Date, enabling proactive intervention on high-risk orders with strategic account prioritization.
+The solution forecasts **GI Date (Goods Issue / Ship Date)** for open deliveries, enabling accurate promise dates to customers, better capacity planning, and proactive scheduling decisions.
 
 ### 🚀 What This POC Delivers
 
 ✅ **End-to-end ML workflow** - Training → Registry → Scoring → BI reporting  
-✅ **Predictive late delivery detection** - AutoML with classification + regression  
-✅ **Risk scoring and bucketing** - 0-2, 3-5, 6-9, 10+ days late categories  
+✅ **Ship date forecasting** - AutoML regression predicting days until DC shipment  
+✅ **Lead time bucketing** - 0-2, 3-5, 6-9, 10+ days to ship categories  
 ✅ **Strategic account prioritization** - High-priority flagging for critical customers  
 ✅ **Performance dashboards** - Interactive Power BI reports with DAX measures  
 ✅ **Fully repeatable pattern** - Scalable, Fabric-native architecture  
 
 ### Business Value
 
-- **Proactive intervention** - Identify late deliveries before they occur
-- **Strategic account protection** - Automatically flag high-priority customers
-- **Root cause analysis** - Analyze patterns by carrier, plant, product, channel
-- **Resource optimization** - Focus resources on highest-risk deliveries
-- **Operational visibility** - Three analysis scenarios (historical, predictive, current day)
+- **Accurate ship date promises** - Forecast when orders will leave DC for customer communication
+- **Capacity planning** - Predict DC workload and shipping volume
+- **Strategic account protection** - Prioritize expedited processing for critical customers
+- **Root cause analysis** - Analyze lead time patterns by carrier, plant, product, channel
+- **Resource optimization** - Schedule labor and logistics resources effectively
+- **Operational visibility** - Historical performance vs predicted ship dates
 - **Unified platform** - All analytics workloads in one place (Fabric)
 
 ---
 
-## 🎯 Use Case: Global Operations Insights - Order Delivery
+## 🎯 Use Case: Distribution Center Ship Date Forecasting
 
 **Business Problem**: 
-Lack of visibility into which open deliveries will arrive late compared to the **Customer Requested Delivery Date**, preventing proactive actions to mitigate customer impact.
+Lack of visibility into when open orders will ship from distribution centers, making it difficult to provide accurate promise dates to customers and optimize DC operations.
+
+**Key Context**:
+- Actual customer delivery dates are **NOT tracked** in the system
+- Only **GI Date (Goods Issue Date)** from DC is available
+- Need to predict **when orders will ship from DC**, not when they'll arrive at customer
 
 **Solution Scenarios**:
-1. **Historical Performance** (Last 2 weeks): Closed deliveries - actual late vs on-time performance by carrier, plant, strategic account
-2. **Predictive Insights** (Open deliveries): ML-scored risk predictions with lateness buckets (0-2, 3-5, 6-9, 10+ days)
-3. **Current Day Monitoring**: Real-time tracking of deliveries at risk today
+1. **Historical Performance** (Last 2-4 weeks): Closed deliveries - analyze actual lead times from order creation to ship
+2. **Predictive Insights** (Open deliveries): ML-predicted ship dates with lead time buckets (0-2, 3-5, 6-9, 10+ days)
+3. **Current Day Monitoring**: Track orders expected to ship today vs predicted dates
 
 **Key Capabilities**:
-- Daily predictions on all open deliveries
-- Risk scores (0-1 normalized) and lateness buckets
-- Strategic account + late delivery = high_priority flag
-- Carrier and plant performance benchmarking
-- Brand and channel late delivery patterns
+- Daily predictions on all open deliveries (not yet shipped)
+- Predicted ship date and days-to-ship forecasts
+- Risk scores for orders with unusually long lead times
+- Strategic account + long lead time = high_priority flag
+- Carrier and plant lead time performance benchmarking
+- Brand and channel shipping pattern analysis
 
 ---
 
@@ -80,11 +87,13 @@ df_closed = fabric.evaluate_dax(dataset="DLV Aging Columns & Measures", dax_stri
 
 ### Target Variable
 
-**AGE_REQ_DATE** - Days late/early compared to Customer Requested Delivery Date
-- **Positive values** = Late delivery (e.g., +5 = 5 days late)
-- **Negative values** = Early delivery (e.g., -2 = 2 days early)  
-- **Zero** = On-time delivery
-- **Type**: Continuous (regression) + Binary classification (late vs on-time)
+**DAYS_TO_SHIP** - Days from order creation to actual ship date (GI Date)
+- Calculated as: `GI Date - Delivery Created On`
+- **Example values:** 3 days, 5 days, 10 days (lead time from creation to ship)
+- **Type**: Continuous (regression)
+- **Prediction output**: Days until ship → converted to predicted ship date
+
+**Note:** We do NOT predict customer delivery dates (not tracked in system). We predict when orders will ship from the DC.
 
 ### Feature Categories
 
@@ -239,42 +248,32 @@ df['created_month'] = pd.to_datetime(df['Delivery Created On']).dt.month
 
 **Step 1: Data Preparation (Notebook 01)**
 - Connect to "DLV Aging Columns & Measures" semantic model using Semantic Link
-- Load **closed deliveries** (GI Date populated) for training
-- Target variable: **AGE_REQ_DATE** (days late/early vs Customer Requested Date)
-  - Positive values = late delivery
-  - Negative values = early delivery
-  - Zero = on-time delivery
-- Explore strategic account performance, lateness distribution, feature correlations
+- Load closed deliveries (GI Date populated = already shipped)
+- Calculate target variable: DAYS_TO_SHIP = GI Date - Delivery Created On
+- Validate data quality (check for required fields: GI Date, Delivery Created On)
 
 **Step 2: Model Training (Notebook 02)**
-- AutoML trains two model types:
-  - **Regression**: Predict exact days late (AGE_REQ_DATE)
-  - **Classification**: Predict late vs on-time (binary + multi-class buckets)
-- Features: Plant, STRATEGIC_ACCOUNT, EWM_CARRIER_CODE, Shipping Point, Brand, Channel, Product Category
-- Models registered in MLflow for tracking and versioning
-- Training takes ~3-5 minutes with 180-second AutoML budget
+- Train AutoML regression model to predict days-to-ship
+- Features: Plant, Carrier, Brand, Channel, Product, Customer, Created Day/Month, etc.
+- Target: DAYS_TO_SHIP (lead time from creation to ship)
+- Register model in MLflow registry: "ship_date_predictor"
 
-**Step 3: Generate Predictions (Notebook 03)**
-- Load trained regression model from MLflow registry
-- Query **open deliveries** (GI Date blank) - these are awaiting completion
-- Generate predictions with enhancements:
-  - `predicted_days_late`: Regression output (exact days)
-  - `is_late`: Binary classification (1 = late, 0 = on-time)
-  - `lateness_bucket`: Category (0-2, 3-5, 6-9, 10+ days late)
-  - `risk_score`: Normalized 0-1 score
-  - `high_priority`: Flag for strategic accounts predicted late
-- Write to Lakehouse table: **late_delivery_predictions**
-- Predictions appear automatically in Power BI via Direct Lake
+**Step 3: Batch Scoring (Notebook 03)**
+- Load open deliveries (GI Date blank = not yet shipped)
+- Load trained model from MLflow
+- Predict days-to-ship for each open delivery
+- Convert to predicted ship date: Delivery Created On + predicted_days_to_ship
+- Create lead time buckets (0-2, 3-5, 6-9, 10+ days)
+- Flag high-priority: Strategic accounts with unusually long lead times
+- Save predictions to Lakehouse delta table: `ship_date_predictions`
 
-**Step 4: Power BI Dashboards**
-- Import DAX measures from `powerbi/dax/measures_late_delivery.dax`
-- Build visualizations:
-  - **Executive Overview**: Late delivery rate, high-priority count, value at risk
-  - **Lateness Buckets**: Distribution across 0-2, 3-5, 6-9, 10+ days
-  - **Strategic Accounts**: Strategic vs non-strategic late rate comparison
-  - **Carrier Performance**: Late rate by carrier with drill-through capabilities
-  - **Plant Analysis**: Identify best/worst performing plants
-  - **Current Day Monitoring**: Real-time tracking of today's at-risk deliveries
+**Step 4: Power BI Reporting**
+- Add `ship_date_predictions` table to semantic model
+- Build dashboards showing:
+  - Predicted ship dates for open orders
+  - Lead time distribution by plant/carrier
+  - Orders expected to ship today/this week
+  - Historical lead time performance vs predictions
 
 ---
 
@@ -296,7 +295,7 @@ aging-prediction-poc/
 │
 ├── powerbi/                                     # Power BI artifacts
 │   └── dax/
-│       └── measures_late_delivery.dax           # DAX measures (buckets, strategic, KPIs)
+│       └── measures_late_delivery.dax           # Legacy DAX measures (archived - no longer used)
 │
 ├── data/                                        # Data documentation
 │   ├── sample/                                  # Sample data files (if needed)
@@ -332,8 +331,8 @@ aging-prediction-poc/
 **Semantic Model Structure**:
 - Table: **Aging** (single denormalized table with 79+ columns)
 - Required columns:
-  - **AGE_REQ_DATE**: Target variable (days late/early)
-  - **GI Date**: Goods Issue date (null = open delivery)
+  - **GI Date**: Goods Issue date (ship date from DC) - null = open delivery
+  - **Delivery Created On**: Order creation date - required for calculating DAYS_TO_SHIP
   - **Plant**: Manufacturing/shipping plant
   - **STRATEGIC_ACCOUNT**: Strategic customer flag ("Yes" or blank)
   - **EWM_CARRIER_CODE**: Carrier identifier
@@ -342,7 +341,7 @@ aging-prediction-poc/
   - **DELIVERY_VALUE_USD**: Shipment value
 
 **Data Filtering Logic**:
-- **Training data**: Closed deliveries where `NOT(ISBLANK([GI Date]))`
+- **Training data**: Closed deliveries where `NOT(ISBLANK([GI Date])) AND NOT(ISBLANK([Delivery Created On]))`
 - **Scoring data**: Open deliveries where `ISBLANK([GI Date])`
 
 ### Setup Steps
@@ -364,11 +363,10 @@ Update `config/fabric_lakehouse_paths.yaml` with your Fabric workspace details:
 workspace_id: "your-workspace-id"
 lakehouse_id: "your-lakehouse-id"
 semantic_model_name: "DLV Aging Columns & Measures"
-mlflow_experiment_name: "LateDeliveryPrediction"
-model_registry_name_regression: "POC-LateDelivery-Regression-AutoML"
-model_registry_name_classification: "POC-LateDelivery-Classification-AutoML"
-output_table_name: "late_delivery_predictions"
-target_column: "AGE_REQ_DATE"
+mlflow_experiment_name: "ShipDatePrediction"
+model_registry_name: "ship_date_predictor"
+output_table_name: "ship_date_predictions"
+target_column: "DAYS_TO_SHIP"
 ```
 
 #### 3. **Run the ML Pipeline**
@@ -378,43 +376,41 @@ Execute notebooks **in order**:
 1. **Data Preparation** - `01_semantic_link_data_preparation.ipynb`
    - Install Semantic Link package (`sempy[fabric]`)
    - Connect to "DLV Aging Columns & Measures" semantic model
-   - Load **closed deliveries** (GI Date populated) for training
-   - Explore AGE_REQ_DATE distribution (target variable)
-   - Analyze strategic account performance
-   - Visualize late vs on-time deliveries
+   - Load **closed deliveries** (GI Date and Delivery Created On populated)
+   - Calculate DAYS_TO_SHIP target variable
+   - Explore lead time distribution
+   - Validate required date columns
 
-2. **Model Training** - `02_autoML_training_pipeline.ipynb` (~5 minutes)
+2. **Model Training** - `02_autoML_training_pipeline.ipynb` (~10 minutes)
    - Execute DAX query to load closed deliveries
-   - Prepare features: Plant, STRATEGIC_ACCOUNT, EWM_CARRIER_CODE, Shipping Point, Brand, Channel
-   - Target: AGE_REQ_DATE (days late/early)
-   - Train regression model (predict exact days late)
-   - Train classification model (binary late/on-time)
-   - Evaluate performance (MAE, RMSE, R², accuracy, F1-score)
-   - Register models in MLflow
+   - Calculate DAYS_TO_SHIP = GI Date - Delivery Created On
+   - Prepare features: Plant, Carrier, Brand, Channel, Product, Customer
+   - Train regression model to predict days from creation to ship
+   - Evaluate performance (MAE, RMSE, R²)
+   - Register model in MLflow as "ship_date_predictor"
    - Generate feature importance visualizations
 
 3. **Batch Scoring** - `03_batch_scoring_pipeline.ipynb`
-   - Load regression model from MLflow
+   - Load trained model from MLflow
    - Query **open deliveries** (GI Date blank) for scoring
-   - Generate predictions with enhancements:
-     - `predicted_days_late`: Exact days
-     - `is_late`: Binary flag (1=late, 0=on-time)
-     - `lateness_bucket`: 0-2, 3-5, 6-9, 10+ categories
-     - `risk_score`: Normalized 0-1 score
-     - `high_priority`: Strategic + late flag
-   - Analyze high-risk deliveries (top 10, strategic accounts, brand/channel breakdown)
-   - Save to `late_delivery_predictions` table
+   - Generate predictions:
+     - `predicted_days_to_ship`: Predicted lead time in days
+     - `predicted_ship_date`: Delivery Created On + predicted days
+     - `lead_time_bucket`: 0-2, 3-5, 6-9, 10+ days categories
+     - `extended_processing`: Strategic accounts with long lead times
+   - Analyze deliveries with extended processing times
+   - Save to `ship_date_predictions` table
    - Display summary statistics
 
 #### 4. **Connect Power BI Report**
 
 1. Open your Power BI workspace
-2. Connect to the `late_delivery_predictions` table in your Lakehouse (Direct Lake mode)
-3. Import DAX measures:
-   - Open `powerbi/dax/measures_late_delivery.dax`
-   - Copy measures into Power BI Desktop
-   - Publish to Fabric workspace
-4. Build dashboards using recommended visuals (see below)
+2. Connect to the `ship_date_predictions` table in your Lakehouse (Direct Lake mode)
+3. Build dashboards for:
+   - Predicted ship dates for open orders
+   - Lead time distribution by plant/carrier
+   - Orders expected to ship today/this week
+4. See INTEGRATION_GUIDE.md for detailed Power BI setup
 
 ---
 
@@ -425,102 +421,64 @@ To retrain with new data:
 1. **Refresh semantic model**: Ensure "DLV Aging Columns & Measures" has latest data
 2. **Run training notebook**: Execute `02_autoML_training_pipeline.ipynb`
 3. **Run scoring notebook**: Execute `03_batch_scoring_pipeline.ipynb` for updated predictions
-4. **Validate predictions**: Check `late_delivery_predictions` table in Lakehouse
+4. **Validate predictions**: Check `ship_date_predictions` table in Lakehouse
 
 **When to retrain:**
 - **Weekly** (recommended for production)
 - When adding new plants, carriers, or product lines
-- If prediction accuracy drops below acceptable threshold
+- If prediction accuracy drops below acceptable threshold (MAE > 3 days)
 - After significant process changes (new fulfillment centers, carrier changes)
-- When late delivery rate changes significantly
+- When lead time patterns change significantly
 
 **Monitoring Model Performance**:
-- Track MAE (Mean Absolute Error) over time
-- Monitor late delivery rate accuracy (predicted vs actual)
+- Track MAE (Mean Absolute Error) over time - target < 3 days
+- Monitor predicted vs actual ship dates for closed deliveries
 - Analyze residuals for systematic bias
-- Review high-priority delivery accuracy (strategic accounts)
+- Review prediction accuracy for strategic accounts
 
 ---
 
-## 📊 Power BI Dashboards
+## 📊 Power BI Integration
 
-### DAX Measures Provided
+See **INTEGRATION_GUIDE.md** for complete Power BI setup instructions, including:
+- How to add `ship_date_predictions` table to your semantic model
+- DAX measures for ship date forecasting KPIs
+- Report templates and best practices
+- Refresh scheduling and optimization
 
-Import from `powerbi/dax/measures_late_delivery.dax`:
-
-**Basic Metrics**:
-- Total Deliveries, Predicted Late Deliveries, Late Delivery Rate
-- Bucket counts (0-2, 3-5, 6-9, 10+ days)
-- Strategic vs Non-Strategic late counts
-- High Priority Deliveries
-
-**Value Impact**:
-- Late Delivery Value ($), On-Time Delivery Value ($)
-- Value at Risk - Strategic ($)
-- Average Late Delivery Value
-
-**Performance Metrics**:
-- Avg Predicted Days Late, Avg Risk Score
-- Carrier Late Rate, Plant Late Rate
-- Historical Late Rate (actual performance)
-
-**Trend Analysis**:
-- Closed Last 14 Days, Late Last 14 Days, Late Rate Last 14 Days
-
-### Recommended Visuals
-
-**Page 1 - Executive Overview**
-- **KPI Cards**: Late Delivery Rate, High Priority Deliveries, Value at Risk - Strategic
-- **Donut Chart**: Late vs On-Time distribution
-- **Column Chart**: Late deliveries by lateness bucket (0-2, 3-5, 6-9, 10+)
-- **Line Chart**: Late Rate Last 14 Days (trend)
-
-**Page 2 - Strategic Account Focus**
-- **KPI Cards**: Strategic Late Deliveries, Strategic Late Rate
-- **Table**: Top 10 high-priority deliveries (strategic + late) with predicted days, value, carrier
-- **Bar Chart**: Strategic vs Non-Strategic late rate comparison
-- **Scatter Plot**: Predicted Days Late vs Delivery Value (color by strategic account)
-
-**Page 3 - Carrier & Plant Performance**
-- **Matrix**: Carrier Late Rate by Plant
-- **Bar Chart**: Late deliveries by carrier (sorted by count)
-- **Bar Chart**: Late deliveries by plant (sorted by late rate)
-- **Slicer**: Filter by carrier, plant, shipping point
-
-**Page 4 - Lateness Bucket Analysis**
-- **Stacked Bar Chart**: Lateness buckets by carrier
-- **Pie Chart**: % distribution across buckets (Pct Bucket measures)
-- **Table**: Deliveries grouped by bucket with avg risk score
-- **Filters**: Brand, Channel, Product Category
-
-**Page 5 - Current Day Monitoring**
-- **KPI Card**: Today Late Deliveries (filtered by prediction_date = TODAY())
-- **Table**: Today's at-risk deliveries with delivery number, customer, carrier, predicted days late
-- **Real-time refresh**: Auto-refresh every hour during business hours
-
----
+**Quick Start - Key Metrics**:
+- Total Open Deliveries
+- Extended Processing Count (deliveries with long lead times)
+- Average Predicted Lead Time
+- Strategic Accounts with Extended Processing
+- Predicted Ship Date Distribution---
 
 ## 📈 Model Performance
 
 Expected performance (will vary based on your data):
 
-**Regression Model (Predict exact days late)**:
-- **MAE:** ~2-4 days (mean absolute error)
-- **RMSE:** ~3-6 days (root mean squared error)
+**Regression Model (Predict days to ship)**:
+- **MAE:** ~2-3 days (mean absolute error)
+- **RMSE:** ~3-5 days (root mean squared error)
+- **R² Score:** ~0.70-0.85 (variance explained)
+
+Performance improves with:
+- More historical data (6+ months recommended)
+- Consistent carrier and plant performance
+- Clean feature engineering (no null values in key fields)
+- Regular retraining (weekly or monthly)
+
+---
+- **RMSE:** ~3-5 days (root mean squared error)
 - **R² Score:** ~0.65-0.80 (variance explained)
 
-**Classification Model (Predict late vs on-time)**:
-- **Accuracy:** ~80-90%
-- **Precision (late):** ~75-85% (when predicting late, how often correct)
-- **Recall (late):** ~70-85% (of actual late deliveries, how many caught)
-- **F1-Score:** ~0.75-0.85
-
 **Business Impact Metrics**:
-- **High-Priority Accuracy**: Strategic account late prediction accuracy typically 5-10% higher
-- **Value Protected**: Focus on high-risk deliveries can prevent 60-80% of value at risk
-- **Proactive Intervention Window**: Average 5-7 days advance notice for late deliveries
+- **Lead Time Accuracy**: Within ±3 days for 70-80% of deliveries
+- **Strategic Account Accuracy**: Typically 5-10% better than average
+- **Forecasting Window**: Average 3-10 days advance notice of ship date
+- **Extended Processing Detection**: 75-85% accuracy for orders with long lead times
 
-*Performance depends on data quality, feature availability, and delivery pattern consistency*
+*Performance depends on data quality, feature availability, and shipping pattern consistency*
 
 ---
 
@@ -535,29 +493,29 @@ Expected performance (will vary based on your data):
 **DAX query returns no data or errors**
 - Check Aging table exists: Open semantic model in Power BI, verify table name
 - Test simple query first: `EVALUATE TOPN(10, Aging)`
-- Verify GI Date column name: `Aging[GI Date]` vs `Aging[GIDate]`
+- Verify column names: `Aging[GI Date]`, `Aging[Delivery Created On]`
 - Check for calculated columns: Brand, Channel, Credit Status may be DAX calculated
 
-**Target variable (AGE_REQ_DATE) is blank or null**
-- AGE_REQ_DATE should be pre-calculated in semantic model (DAX column)
-- Verify calculation: `DATEDIFF([Req. Date Header], [GI Date], DAY)`
-- For training, filter to closed deliveries: `NOT(ISBLANK(Aging[GI Date]))`
-- Check date columns are populated: Req. Date Header and GI Date must exist
+**Target variable (DAYS_TO_SHIP) calculation fails**
+- DAYS_TO_SHIP is calculated in notebook: `GI Date - Delivery Created On`
+- Verify both date columns exist and are populated in closed deliveries
+- Check date format: Should be datetime, not string
+- For training, filter requires BOTH dates: `NOT(ISBLANK([GI Date])) AND NOT(ISBLANK([Delivery Created On]))`
 
 **Feature columns missing**
 - Verify column names match exactly (case-sensitive)
 - Use: `df.columns.tolist()` to see available columns
-- Update feature list in `config/fabric_lakehouse_paths.yaml`
+- Update feature list in Notebook 02 if columns are different
 - For calculated columns (Brand, Channel), ensure semantic model refreshed
 
 **MLflow model not found**
-- Check model registry name: `POC-LateDelivery-Regression-AutoML`
+- Check model registry name: `ship_date_predictor`
 - Verify you've run training notebook (`02_autoML_training_pipeline.ipynb`) first
 - Check MLflow experiments in Fabric workspace: View → MLflow
 - Model version may be `1` or higher - check notebook output
 
 **Power BI shows no predictions**
-- Verify `late_delivery_predictions` table exists in Lakehouse (Tables section)
+- Verify `ship_date_predictions` table exists in Lakehouse (Tables section)
 - Check table was written successfully (notebook output should show row count)
 - Refresh Power BI semantic model: Right-click lakehouse → Refresh
 - Verify Direct Lake mode: Table should appear instantly without manual import
@@ -565,13 +523,13 @@ Expected performance (will vary based on your data):
 **Spark write fails with schema mismatch**
 - Use `.option("overwriteSchema", "true")` when writing to Lakehouse
 - Error often caused by column type changes or renamed columns
-- Solution in notebook: `df_predictions.write.mode("overwrite").option("overwriteSchema", "true").saveAsTable("late_delivery_predictions")`
+- Solution in notebook: `df_predictions.write.mode("overwrite").option("overwriteSchema", "true").saveAsTable("ship_date_predictions")`
 
-**Classification model accuracy is low**
-- Check class imbalance: If 90% deliveries on-time, model may always predict on-time
-- Use SMOTE or class weighting in FLAML AutoML settings
-- Consider stratified train/test split
-- Adjust classification threshold (default 0.5) based on business requirements
+**Regression model accuracy is low**
+- Check data quality: Ensure ship dates (GI Date) and created dates are valid
+- Verify feature engineering: Categorical encoding, temporal features properly calculated
+- Consider stratified train/test split by ship date range
+- Review feature importance: Remove low-value features that add noise
 
 **Predictions are all the same value**
 - Features may have low variance or be mostly null
@@ -595,8 +553,9 @@ Expected performance (will vary based on your data):
 
 **Use Case Reference**:
 - Original use case document: "Global Operations Insights - Order delivery"
-- Business requirement: Predict late deliveries vs Customer Requested Date
-- Three scenarios: Historical (2 weeks closed), Predictive (open), Current day
+- Business requirement: Predict ship date lead time from distribution center
+- Key constraint: Customer delivery dates NOT available - only DC ship dates (GI Date) tracked
+- Three scenarios: Historical (closed deliveries), Predictive (open orders), Current day
 
 ---
 
@@ -605,28 +564,28 @@ Expected performance (will vary based on your data):
 Ideas for extending this POC:
 
 **Enhanced Features**:
-- Add historical carrier performance metrics (30-day late rate)
+- Add historical carrier performance metrics (30-day avg ship time)
 - Include order quantity, weight, and distance features
 - Add temporal features: day of week, month, holiday proximity
-- Customer-level historical late delivery rate
+- Customer-level historical ship time averages
 
 **Advanced Modeling**:
-- **Multi-class classification**: Direct prediction of lateness buckets (0-2, 3-5, 6-9, 10+)
-- **Time-series forecasting**: Predict late delivery trends by week/month
-- **Model explanations**: Add SHAP values to understand drivers for each prediction
-- **Ensemble models**: Combine regression + classification for confidence intervals
+- **Multi-class classification**: Predict ship time buckets (1-2 days, 3-5 days, 6-10 days, 10+ days)
+- **Time-series forecasting**: Predict ship time trends by week/month/season
+- **Model explanations**: Add SHAP values to understand lead time drivers for each prediction
+- **Ensemble models**: Combine multiple regression models for confidence intervals
 
 **Production Deployment**:
 - **Automated pipeline**: Schedule daily scoring via Fabric pipeline orchestration
 - **Real-time predictions**: Deploy as API endpoint for live scoring during order creation
-- **Alerting**: Email/Teams notifications for high-priority late deliveries
-- **Feedback loop**: Track actual outcomes, retrain weekly with new data
+- **Alerting**: Email/Teams notifications for orders with long predicted ship times
+- **Feedback loop**: Track actual ship dates, retrain weekly with new data
 
 **Business Integration**:
-- **Action recommendations**: Suggest carrier changes for high-risk deliveries
-- **Cost-benefit analysis**: Calculate intervention costs vs late delivery penalties
-- **SLA monitoring**: Flag deliveries at risk of SLA breach
-- **Root cause analysis**: Dashboard showing why deliveries are predicted late (carrier, plant, product mix)
+- **Action recommendations**: Suggest carrier/plant changes for orders with long predicted ship times
+- **Cost-benefit analysis**: Calculate expediting costs vs standard shipping
+- **SLA monitoring**: Flag orders at risk of missing target ship dates
+- **Root cause analysis**: Dashboard showing drivers of long ship times (carrier, plant, product mix, seasonality)
 
 **Power BI Enhancements**:
 - **What-if parameters**: Simulate impact of carrier/plant changes
@@ -650,10 +609,10 @@ This POC demonstrates:
 ✅ **Proactive Operations** - Predict issues before they happen, not just analyze past performance
 
 **Key Technical Decisions**:
-- **Target**: AGE_REQ_DATE (customer expectations) vs AGE_CREATEDON (internal metric)
+- **Target**: DAYS_TO_SHIP (creation to DC ship date) - only metric available in data
 - **Data Split**: Closed deliveries (GI Date populated) for training, Open deliveries (GI Date blank) for scoring
-- **Dual Models**: Regression for exact days + Classification for late/on-time binary
-- **Strategic Prioritization**: high_priority flag ensures critical customers get attention
+- **Regression Model**: Predict exact days to ship from order creation
+- **Business Constraint**: Customer delivery dates NOT tracked - only DC ship dates (GI Date) available
 
 ---
 

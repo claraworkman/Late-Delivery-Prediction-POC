@@ -1,6 +1,6 @@
 # Integration Guide: ML Predictions → Power BI Reports
 
-This guide outlines best practices for integrating the late delivery predictions into your Power BI semantic model and building effective reports.
+This guide outlines best practices for integrating the ship date predictions into your Power BI semantic model and building effective reports.
 
 ---
 
@@ -19,11 +19,11 @@ This guide outlines best practices for integrating the late delivery predictions
 
 ## Overview
 
-After running the ML pipeline (Notebooks 01-03), you'll have a **`late_delivery_predictions`** table in your Lakehouse containing:
+After running the ML pipeline (Notebooks 01-03), you'll have a **`ship_date_predictions`** table in your Lakehouse containing:
 
 - **Delivery identifiers** (Delivery Document, Plant, etc.)
-- **Predictions** (predicted_days_late, risk_score, lateness_bucket)
-- **Business context** (STRATEGIC_ACCOUNT, high_priority flag)
+- **Predictions** (predicted_days_to_ship, predicted_ship_date, lead_time_bucket)
+- **Business context** (STRATEGIC_ACCOUNT, extended_processing flag)
 - **Metadata** (prediction_timestamp)
 
 **Goal:** Integrate this table into your existing "DLV Aging Columns & Measures" semantic model for unified reporting.
@@ -45,12 +45,12 @@ After running the ML pipeline (Notebooks 01-03), you'll have a **`late_delivery_
 
 3. **Select predictions table**
    - Navigate to your Lakehouse
-   - Select table: `late_delivery_predictions`
+   - Select table: `ship_date_predictions`
    - Click **Load**
 
 4. **Verify data loaded**
    - Check Data view for the new table
-   - Verify columns: Delivery Document, predicted_days_late, risk_score, etc.
+   - Verify columns: Delivery Document, predicted_days_to_ship, predicted_ship_date, etc.
 
 ### Option B: Fabric Portal (Direct Lake Mode)
 
@@ -65,7 +65,7 @@ After running the ML pipeline (Notebooks 01-03), you'll have a **`late_delivery_
    - Click **+ New data source**
    - Select **Lakehouse**
    - Choose your Lakehouse
-   - Select `late_delivery_predictions`
+   - Select `ship_date_predictions`
    - Click **Create**
 
 4. **Advantages of Direct Lake:**
@@ -82,13 +82,13 @@ After running the ML pipeline (Notebooks 01-03), you'll have a **`late_delivery_
 **Connect predictions to historical data:**
 
 ```
-Aging[Delivery Document] ←→ late_delivery_predictions[Delivery Document]
+Aging[Delivery Document] ←→ ship_date_predictions[Delivery Document]
 ```
 
 **How to create:**
 
 1. Go to **Model view** in Power BI Desktop
-2. Drag from `Aging[Delivery Document]` to `late_delivery_predictions[Delivery Document]`
+2. Drag from `Aging[Delivery Document]` to `ship_date_predictions[Delivery Document]`
 3. Set relationship properties:
    - **Cardinality:** One-to-Many (1:*)
    - **Cross-filter direction:** Both
@@ -99,9 +99,9 @@ Aging[Delivery Document] ←→ late_delivery_predictions[Delivery Document]
 If you have separate dimension tables:
 
 ```
-DimPlant[Plant] ←→ late_delivery_predictions[Plant]
-DimCarrier[Carrier Code] ←→ late_delivery_predictions[EWM Carrier Code]
-DimCustomer[Sold To Key] ←→ late_delivery_predictions[Sold To - Key]
+DimPlant[Plant] ←→ ship_date_predictions[Plant]
+DimCarrier[Carrier Code] ←→ ship_date_predictions[EWM Carrier Code]
+DimCustomer[Sold To Key] ←→ ship_date_predictions[Sold To - Key]
 ```
 
 ---
@@ -110,69 +110,65 @@ DimCustomer[Sold To Key] ←→ late_delivery_predictions[Sold To - Key]
 
 ### Key Performance Indicators (KPIs)
 
-#### 1. Total Open Deliveries At Risk
+#### 1. Total Open Deliveries
 
 ```dax
-Open Deliveries At Risk = 
+Total Open Deliveries = 
+COUNTROWS(ship_date_predictions)
+```
+
+#### 2. Extended Processing Count
+
+```dax
+Extended Processing Count = 
 CALCULATE(
-    COUNTROWS(late_delivery_predictions),
-    late_delivery_predictions[predicted_days_late] > 0
+    COUNTROWS(ship_date_predictions),
+    ship_date_predictions[extended_processing] = "Yes"
 )
 ```
 
-#### 2. High Priority At-Risk Count
+#### 3. Strategic Accounts with Extended Processing
 
 ```dax
-High Priority At Risk = 
+Strategic Extended Processing = 
 CALCULATE(
-    COUNTROWS(late_delivery_predictions),
-    late_delivery_predictions[high_priority] = "Yes"
+    COUNTROWS(ship_date_predictions),
+    ship_date_predictions[STRATEGIC_ACCOUNT] = "Yes",
+    ship_date_predictions[extended_processing] = "Yes"
 )
 ```
 
-#### 3. Strategic Accounts At Risk
+#### 4. Average Predicted Lead Time
 
 ```dax
-Strategic At Risk = 
-CALCULATE(
-    COUNTROWS(late_delivery_predictions),
-    late_delivery_predictions[STRATEGIC_ACCOUNT] = "Yes",
-    late_delivery_predictions[predicted_days_late] > 0
-)
+Avg Predicted Lead Time = 
+AVERAGE(ship_date_predictions[predicted_days_to_ship])
 ```
 
-#### 4. Average Predicted Lateness
+#### 5. Total Value - Extended Processing
 
 ```dax
-Avg Predicted Lateness = 
-AVERAGE(late_delivery_predictions[predicted_days_late])
-```
-
-#### 5. Total Value At Risk
-
-```dax
-Value At Risk = 
+Value Extended Processing = 
 CALCULATE(
-    SUM(late_delivery_predictions[DELIVERY_VALUE_USD]),
-    late_delivery_predictions[predicted_days_late] > 5
+    SUM(ship_date_predictions[DELIVERY_VALUE_USD]),
+    ship_date_predictions[predicted_days_to_ship] > 7
 )
 ```
 
 ### Conditional Formatting Measures
 
-#### Risk Level Color
+#### Lead Time Color
 
 ```dax
-Risk Level Color = 
-VAR PredictedDays = AVERAGE(late_delivery_predictions[predicted_days_late])
+Lead Time Color = 
+VAR PredictedDays = AVERAGE(ship_date_predictions[predicted_days_to_ship])
 RETURN
     SWITCH(
         TRUE(),
-        PredictedDays >= 10, "#D32F2F",  -- Red: 10+ days late
-        PredictedDays >= 6, "#F57C00",   -- Orange: 6-9 days late
-        PredictedDays >= 3, "#FBC02D",   -- Yellow: 3-5 days late
-        PredictedDays > 0, "#388E3C",    -- Light Green: 0-2 days late
-        "#1976D2"                         -- Blue: On-time/early
+        PredictedDays >= 10, "#D32F2F",  -- Red: 10+ days
+        PredictedDays >= 6, "#F57C00",   -- Orange: 6-9 days
+        PredictedDays >= 3, "#FBC02D",   -- Yellow: 3-5 days
+        "#388E3C"                         -- Green: 0-2 days
     )
 ```
 
@@ -181,7 +177,7 @@ RETURN
 ```dax
 Priority Icon = 
 IF(
-    late_delivery_predictions[high_priority] = "Yes",
+    ship_date_predictions[extended_processing] = "Yes",
     UNICHAR(9888),  -- Warning symbol
     ""
 )
@@ -195,15 +191,15 @@ IF(
 Prediction Accuracy MAE = 
 VAR PredictedValues = 
     SELECTCOLUMNS(
-        late_delivery_predictions,
-        "DeliveryDoc", late_delivery_predictions[Delivery Document],
-        "Predicted", late_delivery_predictions[predicted_days_late]
+        ship_date_predictions,
+        "DeliveryDoc", ship_date_predictions[Delivery Document],
+        "Predicted", ship_date_predictions[predicted_days_to_ship]
     )
 VAR ActualValues = 
     SELECTCOLUMNS(
         Aging,
         "DeliveryDoc", Aging[Delivery Document],
-        "Actual", Aging[AGE_REQ_DATE]
+        "Actual", Aging[DAYS_TO_SHIP]
     )
 VAR Joined = 
     NATURALLEFTOUTERJOIN(PredictedValues, ActualValues)
@@ -214,48 +210,53 @@ RETURN
     )
 ```
 
+**Note:** This measure requires calculating actual DAYS_TO_SHIP in the Aging table:
+```dax
+DAYS_TO_SHIP = DATEDIFF(Aging[Delivery Created On], Aging[GI Date], DAY)
+```
+
 ---
 
 ## Step 4: Create Effective Reports
 
 ### Report 1: Executive Dashboard
 
-**Purpose:** High-level overview of at-risk deliveries
+**Purpose:** High-level overview of ship date forecasts
 
 **Key Visuals:**
 
 1. **KPI Cards** (top row)
    - Total Open Deliveries
-   - High Priority At Risk
-   - Strategic Accounts At Risk
-   - Avg Predicted Lateness
+   - Extended Processing Count
+   - Strategic Extended Processing
+   - Avg Predicted Lead Time (days)
 
-2. **Donut Chart: Risk Distribution**
-   - Axis: `lateness_bucket`
+2. **Donut Chart: Lead Time Distribution**
+   - Axis: `lead_time_bucket`
    - Values: Count of deliveries
-   - Legend: Color by risk level
+   - Legend: Color by lead time range
 
-3. **Bar Chart: Top 10 At-Risk Plants**
+3. **Bar Chart: Top 10 Plants by Lead Time**
    - Axis: `Plant`
-   - Values: Count of deliveries
-   - Filter: `predicted_days_late > 5`
+   - Values: Average predicted_days_to_ship
+   - Sort: Descending
 
-4. **Table: High Priority Alerts**
-   - Columns: Delivery Document, Plant, Carrier, Predicted Days Late, Value
-   - Filter: `high_priority = "Yes"`
-   - Sort: Predicted Days Late (descending)
+4. **Table: Extended Processing Alerts**
+   - Columns: Delivery Document, Plant, Carrier, Predicted Ship Date, Lead Time, Value
+   - Filter: `extended_processing = "Yes"`
+   - Sort: Predicted Days To Ship (descending)
 
 ### Report 2: Operational Drill-Down
 
-**Purpose:** Detailed view for operations team to take action
+**Purpose:** Detailed view for operations team to plan logistics
 
 **Key Visuals:**
 
-1. **Matrix: Plant × Carrier Performance**
+1. **Matrix: Plant × Carrier Lead Times**
    - Rows: Plant
    - Columns: EWM Carrier Code
-   - Values: Avg Predicted Days Late
-   - Conditional formatting: Risk Level Color measure
+   - Values: Avg Predicted Days To Ship
+   - Conditional formatting: Lead Time Color measure
 
 2. **Table: Delivery Details**
    - Columns:
@@ -264,22 +265,23 @@ RETURN
      - Plant
      - Brand
      - Channel
-     - Predicted Days Late
-     - Risk Score
+     - Created On
+     - Predicted Ship Date
+     - Lead Time (days)
      - Strategic Account (icon)
      - Value
    - Interactive filtering by Plant, Carrier, Brand
 
-3. **Line Chart: Predictions Over Time**
-   - Axis: `prediction_timestamp`
-   - Values: Count of deliveries by lateness bucket
-   - Legend: lateness_bucket
+3. **Calendar Visual: Predicted Ship Dates**
+   - Axis: `predicted_ship_date`
+   - Values: Count of deliveries by date
+   - Tooltip: Delivery details
 
-4. **Scatter Plot: Risk vs Value**
-   - X-axis: `predicted_days_late`
+4. **Scatter Plot: Lead Time vs Value**
+   - X-axis: `predicted_days_to_ship`
    - Y-axis: `DELIVERY_VALUE_USD`
-   - Size: `risk_score`
    - Color: `STRATEGIC_ACCOUNT`
+   - Size: Delivery quantity
 
 ### Report 3: Model Performance Monitoring
 
@@ -298,7 +300,7 @@ RETURN
    - Identify model degradation
 
 3. **Histogram: Prediction Distribution**
-   - X-axis: `predicted_days_late`
+   - X-axis: `predicted_days_to_ship`
    - Y-axis: Count
    - Compare to actual distribution
 
@@ -337,7 +339,7 @@ Pipeline Flow:
 2. Notebook 03: Score open deliveries (2 min)
 3. Predictions table updated
 4. Semantic model auto-refreshes (Direct Lake)
-5. Reports show latest predictions
+5. Reports show latest ship date forecasts
 ```
 
 ### Setting Up the Schedule
@@ -346,7 +348,7 @@ Pipeline Flow:
 
 1. **Create Data Pipeline**
    - Workspace → New → Data pipeline
-   - Name: "Daily_Late_Delivery_Predictions"
+   - Name: "Daily_Ship_Date_Predictions"
 
 2. **Add Notebook Activities**
    ```
@@ -402,10 +404,10 @@ Apply the same RLS rules from the Aging table to predictions:
 
 Document in semantic model description:
 ```
-Predictions Table: late_delivery_predictions
+Predictions Table: ship_date_predictions
 Source: Fabric Lakehouse (ML Pipeline Output)
 Update Frequency: Daily at 2:00 AM
-Model: late_delivery_predictor (AutoML Regression)
+Model: ship_date_predictor (AutoML Regression)
 Accuracy: ~X days MAE (monitor weekly)
 Owner: [Your Team]
 ```
@@ -424,13 +426,13 @@ For large datasets, create aggregation tables:
 ```dax
 PredictionsSummary = 
 SUMMARIZE(
-    late_delivery_predictions,
-    late_delivery_predictions[Plant],
-    late_delivery_predictions[EWM Carrier Code],
-    late_delivery_predictions[lateness_bucket],
-    "AvgPredicted", AVERAGE(late_delivery_predictions[predicted_days_late]),
-    "TotalValue", SUM(late_delivery_predictions[DELIVERY_VALUE_USD]),
-    "DeliveryCount", COUNTROWS(late_delivery_predictions)
+    ship_date_predictions,
+    ship_date_predictions[Plant],
+    ship_date_predictions[EWM Carrier Code],
+    ship_date_predictions[lead_time_bucket],
+    "AvgLeadTime", AVERAGE(ship_date_predictions[predicted_days_to_ship]),
+    "TotalValue", SUM(ship_date_predictions[DELIVERY_VALUE_USD]),
+    "DeliveryCount", COUNTROWS(ship_date_predictions)
 )
 ```
 
@@ -438,14 +440,14 @@ SUMMARIZE(
 
 ```dax
 -- Good: Uses variables for performance
-Open At Risk = 
-VAR AtRiskDeliveries = 
+Extended Processing Count = 
+VAR ExtendedDeliveries = 
     FILTER(
-        late_delivery_predictions,
-        late_delivery_predictions[predicted_days_late] > 0
+        ship_date_predictions,
+        ship_date_predictions[predicted_days_to_ship] > 7
     )
 RETURN
-    COUNTROWS(AtRiskDeliveries)
+    COUNTROWS(ExtendedDeliveries)
 
 -- Bad: Recalculates filter multiple times
 -- CALCULATE(COUNTROWS(...), FILTER(...)) -- repeated multiple times
@@ -476,7 +478,7 @@ RETURN
 
 **Solutions:**
 1. Verify Lakehouse connection is active
-2. Check table name matches exactly: `late_delivery_predictions`
+2. Check table name matches exactly: `ship_date_predictions`
 3. Refresh semantic model in Fabric portal
 4. Check workspace permissions (need Contributor or higher)
 
@@ -508,10 +510,10 @@ RETURN
 ### Issue: Predictions Seem Inaccurate
 
 **Solutions:**
-1. Check model performance metrics in Notebook 02 (MAE should be <5 days)
+1. Check model performance metrics in Notebook 02 (MAE should be <3 days for lead time)
 2. Verify feature columns match between training and scoring
 3. Retrain model with more recent data
-4. Check for data quality issues (nulls, incorrect values)
+4. Check for data quality issues (nulls, incorrect dates)
 5. Review prediction_timestamp to ensure using latest predictions
 
 ---
@@ -526,18 +528,18 @@ After integration, consider:
    - Retrain model quarterly or when accuracy drops
 
 2. **🔄 Iterate on Features**
-   - Add new features (e.g., historical carrier performance)
+   - Add new features (e.g., historical plant performance)
    - Test seasonal patterns
-   - Incorporate external data (weather, holidays)
+   - Incorporate order complexity metrics
 
 3. **📈 Expand Use Cases**
    - Predict delivery costs
-   - Forecast inventory needs
-   - Optimize carrier selection
+   - Forecast inventory needs based on ship dates
+   - Optimize production scheduling
 
 4. **👥 User Training**
-   - Train operations team on using predictions
-   - Document action protocols for at-risk deliveries
+   - Train operations team on using ship date forecasts
+   - Document planning protocols for extended lead times
    - Gather feedback for improvements
 
 ---
@@ -558,4 +560,4 @@ For issues with:
 - **Semantic Model:** Use DAX Studio or Performance Analyzer
 - **Reports:** Check report settings and filters
 
-**Last Updated:** November 13, 2025
+**Last Updated:** November 14, 2025
