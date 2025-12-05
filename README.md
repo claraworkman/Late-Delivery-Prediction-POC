@@ -121,7 +121,7 @@ df_closed = fabric.evaluate_dax(dataset="DLV Aging Columns & Measures", dax_stri
 #### 📦 Product Features
 | Feature | Type | Description | Why It Matters |
 |---------|------|-------------|----------------|
-| **Brand** | Categorical | Product brand (DAX calculated)<br>• Callaway/Odyssey<br>• Jack Wolfskin<br>• TravisMathew/Cuater<br>• Topgolf<br>• Ogio | Some brands may have longer lead times |
+| **Brand** | Categorical | Product brand (DAX calculated)<br>• Odyssey<br>• Jack Wolfskin<br>• TravisMathew/Cuater<br>• Topgolf<br>• Ogio | Some brands may have longer lead times |
 | **Channel** | Categorical | Sales channel (DAX calculated)<br>• E-commerce<br>• Inter-company<br>• Other | Different channels have different SLAs |
 | **Product Category** | Categorical | Product classification | Product complexity affects delivery time |
 | **Product Type** | Categorical | Type of product | Custom vs standard products |
